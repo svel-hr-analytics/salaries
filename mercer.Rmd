@@ -1,0 +1,287 @@
+---
+title: "Mercer Dashboard"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    social: menu
+    source_code: embed
+runtime: shiny
+---
+
+```{r global, include=FALSE}
+# load data in 'global' chunk so it can be shared by all users of the dashboard
+library(ggplot2)
+library(plotly)
+library(overlapping)
+library(readxl)
+library(DT)
+data = read_excel("dataset2.xlsx", sheet = 1)
+#data2 = read_excel("dataset.xlsx", sheet = 3)
+```
+General analysis
+=======================================================================
+
+Inputs {.sidebar}
+-----------------------------------------------------------------------
+Graph
+```{r}
+selectInput('graphtype', 'Graph Type', c('Mercer2021 - Mercer2022', 'Mercer2021 - ELPROM', 'Mercer2022 - ELPROM'))
+```
+Filters
+```{r}
+selectInput('type', 'Employee Type', choices = c('All', unique(data$type)))
+selectInput('division', 'Division', choices = c('All', unique(data$division)))
+selectInput('department1', 'Department-1', choices = c('All', unique(data$department1)))
+selectInput('department2', 'Department-2', choices = c('All', unique(data$department2)))
+```
+
+Outputs
+-----------------------------------------------------------------------
+
+### Density
+
+```{r}
+filtered_data <- reactive({
+    temp_data <- data
+    if (input$type != 'All') {
+      temp_data <- temp_data[temp_data$type == input$type, ]
+    }
+    if (input$division != 'All') {
+      temp_data <- temp_data[temp_data$division == input$division, ]
+    }
+    if (input$department1 != 'All') {
+      temp_data <- temp_data[temp_data$department1 == input$department1, ]
+    }
+    if (input$department2 != 'All') {
+      temp_data <- temp_data[temp_data$department2 == input$department2, ]
+    }
+    temp_data
+  })
+#renderPlot({
+#  out <- overlap(list(mercer2021 = filtered_data()$mercer2021, mercer2022 = filtered_data()$mercer2022), plot=TRUE)
+#})
+renderPlotly({
+  if (input$graphtype == 'Mercer2021 - Mercer2022') {
+    datadata1 <- subset(filtered_data(), select = c(mercer2021, mercer2022))
+    datadata1 <- stack(datadata1)
+    densityplot <- ggplot(datadata1, aes(x=values, fill=ind)) + 
+                 geom_density(alpha = 0.65, position = "identity") +
+                 scale_fill_manual(values=c("#E3828F", "#82BFE3"))
+  }
+  if (input$graphtype == 'Mercer2021 - ELPROM') {
+    datadata1 <- subset(filtered_data(), select = c(mercer2021, brutto))
+    datadata1 <- stack(datadata1)
+    densityplot <- ggplot(datadata1, aes(x=values, fill=ind)) + 
+                 geom_density(alpha = 0.65, position = "identity") +
+                 scale_fill_manual(values=c("#E3828F", "#82BFE3"))
+  }
+  if (input$graphtype == 'Mercer2022 - ELPROM') {
+    datadata1 <- subset(filtered_data(), select = c(mercer2022, brutto))
+    datadata1 <- stack(datadata1)
+    densityplot <- ggplot(datadata1, aes(x=values, fill=ind)) + 
+                 geom_density(alpha = 0.65, position = "identity") +
+                 scale_fill_manual(values=c("#E3828F", "#82BFE3"))
+  }
+  ggplotly(densityplot)
+})
+```
+Row {data-width=300}
+-------------------------------------
+
+### Density Info
+
+
+```{r}
+renderTable({
+  if (input$graphtype == 'Mercer2021 - Mercer2022') {
+    out <- overlap(list(mercer2021 = filtered_data()$mercer2021, mercer2022 = filtered_data()$mercer2022))
+    outdata <- data.frame('Size' = nrow(filtered_data()), 
+                          'Overlapping' = rep(out$OV), 
+                          'Red_Sum' = sum(filtered_data()$mercer2021), 
+                          'Blue_Sum' = sum(filtered_data()$mercer2022), 
+                          'Difference' = abs(sum(filtered_data()$mercer2021) - sum(filtered_data()$mercer2022))
+                          )
+    show_out <- data.frame(Parameters = colnames(outdata), Values = t(outdata))
+  }
+  if (input$graphtype == 'Mercer2021 - ELPROM') {
+    out <- overlap(list(mercer2021 = filtered_data()$mercer2021, brutto = filtered_data()$brutto))
+    outdata <- data.frame('Size' = nrow(filtered_data()), 
+                          'Overlapping' = rep(out$OV), 
+                          'Red_Sum' = sum(filtered_data()$mercer2021), 
+                          'Blue_Sum' = sum(filtered_data()$brutto), 
+                          'Difference' = abs(sum(filtered_data()$mercer2021) - sum(filtered_data()$brutto))
+                          )
+    show_out <- data.frame(Parameters = colnames(outdata), Values = t(outdata))
+  }
+  if (input$graphtype == 'Mercer2022 - ELPROM') {
+    out <- overlap(list(mercer2022 = filtered_data()$mercer2022, brutto = filtered_data()$brutto))
+    outdata <- data.frame('Size' = nrow(filtered_data()), 
+                          'Overlapping' = rep(out$OV), 
+                          'Red_Sum' = sum(filtered_data()$mercer2022), 
+                          'Blue_Sum' = sum(filtered_data()$brutto), 
+                          'Difference' = abs(sum(filtered_data()$mercer2022) - sum(filtered_data()$brutto))
+                          )
+    show_out <- data.frame(Parameters = colnames(outdata), Values = t(outdata))
+  }
+  show_out
+})
+```
+
+### Intersections
+
+```{r}
+renderTable({
+  if (input$graphtype == 'Mercer2021 - Mercer2022') {
+  out <- overlap(list(mercer2021 = filtered_data()$mercer2021, mercer2022 = filtered_data()$mercer2022), get_xpoints=TRUE)
+  outdata2 <- data.frame('Points' = c(out$xpoints))
+  }
+  if (input$graphtype == 'Mercer2021 - ELPROM') {
+  out <- overlap(list(mercer2021 = filtered_data()$mercer2021, brutto = filtered_data()$brutto), get_xpoints=TRUE)
+  outdata2 <- data.frame('Points' = c(out$xpoints))
+  }
+  if (input$graphtype == 'Mercer2022 - ELPROM') {
+  out <- overlap(list(mercer2022 = filtered_data()$mercer2022, brutto = filtered_data()$brutto), get_xpoints=TRUE)
+  outdata2 <- data.frame('Points' = c(out$xpoints))
+  }
+  outdata2
+})
+```
+
+
+Employee
+=======================================================================
+Inputs {.sidebar}
+-----------------------------------------------------------------------
+Employee filters
+```{r}
+selectInput('name', 'Employee', c('All', unique(data$name)))
+selectInput('filter', 'Filter', c('All', 'Type', 'Division', 'Department1', 'Department2', 'Description'))
+```
+Outputs
+-----------------------------------------------------------------------
+### Employee barplot
+```{r}
+decription_data <- reactive({
+  temp_data_desc <- data
+  if (input$name != 'All') {
+    temp_data_desc <- temp_data_desc[temp_data_desc$name == input$name, ]
+  }
+  temp_data_desc
+})
+
+filtered_data2 <- reactive({
+    temp_data2 <- data
+    if (input$filter == 'Type') {
+      temp_data2 <- temp_data2[temp_data2$type == decription_data()$type, ]
+    }
+    if (input$filter == 'Division') {
+      temp_data2 <- temp_data2[temp_data2$division == decription_data()$division, ]
+    }
+    if (input$filter == 'Department1') {
+      temp_data2 <- temp_data2[temp_data2$department1 == decription_data()$department1, ]
+    }
+    if (input$filter == 'Department2') {
+      temp_data2 <- temp_data2[temp_data2$department2 == decription_data()$department2, ]
+    }
+    if (input$filter == 'Description') {
+      temp_data2 <- temp_data2[temp_data2$description == decription_data()$description, ]
+    }
+    temp_data2
+  })
+
+
+renderPlotly({
+  if (input$name != 'All') {
+    bar_data <- filtered_data2()
+    barbar <- ggplot(data=bar_data,
+                 aes(x=reorder(name, brutto),
+                 y=brutto,
+                 fill=factor(ifelse(name==input$name, "Selected", "Others")))) +
+    geom_hline(yintercept = median(bar_data$brutto),        
+              col = "#74D8B5",
+              lwd = 0.9) +
+    geom_bar(stat="identity") +
+    scale_fill_manual(name = "Employee", values=c("#82BFE3", "#E3828F")) +
+    ggtitle("Employee Barplot")
+    ggplotly(barbar)
+  }
+})
+```
+Row {data-width=400}
+-------------------------------------
+### Employee Info
+```{r}
+#dataset4 <- reactive({
+#  subset(data, name==input$name)
+#})
+renderTable({
+  if (input$name != 'All') {
+    out_table2 <- data.frame(Parameters = rownames(t(decription_data())), Values = t(decription_data()))
+    out_table2
+  }
+})
+```
+
+Data
+=======================================================================
+Inputs {.sidebar}
+-----------------------------------------------------------------------
+Filters
+```{r}
+selectInput('type3', 'Employee Type', choices = c('All', unique(data$type)))
+selectInput('division3', 'Division', choices = c('All', unique(data$division)))
+selectInput('department13', 'Department-1', choices = c('All', unique(data$department1)))
+selectInput('department23', 'Department-2', choices = c('All', unique(data$department2)))
+numericInput('min_brutto3', 'Min Brutto', value=0)
+numericInput('max_brutto3', 'Max Brutto', value=10000)
+numericInput('min_mercer2021', 'Min Mercer2021', value=0)
+numericInput('max_mercer2021', 'Max Mercer2021', value=10000)
+numericInput('min_mercer2022', 'Min Mercer2022', value=0)
+numericInput('max_mercer2022', 'Max Mercer2022', value=10000)
+```
+Outputs
+-----------------------------------------------------------------------
+### Dataset
+
+```{r}
+filtered_data3 <- reactive({
+    temp_data3 <- data
+    if (input$type3 != 'All') {
+      temp_data3 <- temp_data3[temp_data3$type == input$type3, ]
+    }
+    if (input$division3 != 'All') {
+      temp_data3 <- temp_data3[temp_data3$division == input$division3, ]
+    }
+    if (input$department13 != 'All') {
+      temp_data3 <- temp_data3[temp_data3$department1 == input$department13, ]
+    }
+    if (input$department23 != 'All') {
+      temp_data3 <- temp_data3[temp_data3$department2 == input$department23, ]
+    }
+    if (input$min_brutto3 != -10) {
+      temp_data3 <- temp_data3[temp_data3$brutto >= input$min_brutto3, ]
+    }
+    if (input$max_brutto3 != 12378) {
+      temp_data3 <- temp_data3[temp_data3$brutto <= input$max_brutto3, ]
+    }
+    if (input$min_mercer2021 != -10) {
+      temp_data3 <- temp_data3[temp_data3$mercer2021 >= input$min_mercer2021, ]
+    }
+    if (input$max_mercer2021 != 12378) {
+      temp_data3 <- temp_data3[temp_data3$mercer2021 <= input$max_mercer2021, ]
+    }
+    if (input$min_mercer2022 != -10) {
+      temp_data3 <- temp_data3[temp_data3$mercer2022 >= input$min_mercer2022, ]
+    }
+    if (input$max_mercer2022 != 12378) {
+      temp_data3 <- temp_data3[temp_data3$mercer2022 <= input$max_mercer2022, ]
+    }
+    temp_data3
+  })
+
+  renderDT({
+    show_data <- filtered_data3()
+    show_data
+  })
+```
+
